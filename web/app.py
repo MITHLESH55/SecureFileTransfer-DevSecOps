@@ -7,8 +7,9 @@ import struct
 import threading
 from datetime import datetime
 
-from flask import Flask, render_template, request, jsonify, send_file, redirect
+from flask import Flask, render_template, request, jsonify, send_file, redirect, Response
 from werkzeug.utils import secure_filename
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 from core.crypto import (
     generate_rsa_keys,
@@ -32,6 +33,94 @@ WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(WEB_DIR, "templates")
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR)
+ 
+# ================================================================
+# PROMETHEUS MONITORING METRICS
+# ================================================================
+METRICS_START_TIME = time.time()
+
+HTTP_REQUESTS = Counter(
+    "sft_http_requests_total",
+    "Total HTTP requests received by the Secure File Transfer application",
+    ["method", "endpoint", "status"],
+)
+
+HTTP_ERRORS = Counter(
+    "sft_http_errors_total",
+    "Total HTTP requests returning client/server errors",
+    ["method", "endpoint", "status"],
+)
+
+HTTP_LATENCY = Histogram(
+    "sft_http_request_duration_seconds",
+    "HTTP request latency in seconds",
+    ["method", "endpoint"],
+)
+
+APP_UPTIME = Gauge(
+    "sft_uptime_seconds",
+    "Application uptime in seconds",
+)
+
+APP_UPTIME.set_function(
+    lambda: time.time() - METRICS_START_TIME
+)
+
+
+@app.before_request
+def metrics_before_request():
+    if request.path != "/metrics":
+        request._sft_request_start = time.perf_counter()
+
+
+@app.after_request
+def metrics_after_request(response):
+    if request.path == "/metrics":
+        return response
+
+    start = getattr(request, "_sft_request_start", None)
+
+    endpoint = (
+        request.url_rule.rule
+        if request.url_rule
+        else "unmatched"
+    )
+
+    method = request.method
+    status = str(response.status_code)
+
+    HTTP_REQUESTS.labels(
+        method=method,
+        endpoint=endpoint,
+        status=status,
+    ).inc()
+
+    if start is not None:
+        HTTP_LATENCY.labels(
+            method=method,
+            endpoint=endpoint,
+        ).observe(
+            time.perf_counter() - start
+        )
+
+    if response.status_code >= 400:
+        HTTP_ERRORS.labels(
+            method=method,
+            endpoint=endpoint,
+            status=status,
+        ).inc()
+
+    return response
+
+
+@app.route("/metrics")
+def metrics():
+    return Response(
+        generate_latest(),
+        mimetype=CONTENT_TYPE_LATEST,
+    )
+
+
 
 # Application version.
 # This value can be changed using the APP_VERSION environment
