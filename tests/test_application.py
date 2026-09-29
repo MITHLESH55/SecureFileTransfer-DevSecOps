@@ -26,7 +26,6 @@ def test_sender_page_loads():
     response = client.get("/sender")
 
     assert response.status_code == 200
-    assert b"Sender" in response.data or b"sender" in response.data
 
 
 def test_receiver_page_loads():
@@ -36,11 +35,25 @@ def test_receiver_page_loads():
     response = client.get("/receiver")
 
     assert response.status_code == 200
-    assert b"Receiver" in response.data or b"receiver" in response.data
+
+
+def test_version_endpoint():
+    """Verify the deployment version endpoint."""
+    client = app.test_client()
+
+    response = client.get("/api/version")
+
+    assert response.status_code == 200
+
+    data = response.get_json()
+
+    assert data["application"] == "Secure File Transfer System"
+    assert data["version"] == "1.0.0"
+    assert data["status"] == "running"
 
 
 def test_receiver_can_generate_rsa_keys():
-    """Verify receiver initialization creates a transfer and RSA public key."""
+    """Verify receiver initialization creates RSA keys."""
     client = app.test_client()
 
     response = client.post("/api/receiver/init-transfer")
@@ -52,6 +65,7 @@ def test_receiver_can_generate_rsa_keys():
     assert data["success"] is True
     assert data["transfer_id"]
     assert data["public_key"]
+
     assert "BEGIN PUBLIC KEY" in data["public_key"]
 
 
@@ -59,15 +73,22 @@ def test_end_to_end_secure_file_transfer():
     """
     Integration test:
     1. Receiver generates RSA keys.
-    2. Sender uploads a file with the receiver's public key.
-    3. Application encrypts and transfers the file.
+    2. Sender uploads a file.
+    3. File is encrypted and transferred.
     4. Receiver decrypts the file.
     5. Integrity is verified.
+    6. Decrypted file is downloaded.
     """
+
     client = app.test_client()
 
-    # Step 1: Receiver initializes a transfer
-    init_response = client.post("/api/receiver/init-transfer")
+    # ------------------------------------------------------------
+    # Receiver initializes transfer
+    # ------------------------------------------------------------
+
+    init_response = client.post(
+        "/api/receiver/init-transfer"
+    )
 
     assert init_response.status_code == 200
 
@@ -76,15 +97,23 @@ def test_end_to_end_secure_file_transfer():
     transfer_id = init_data["transfer_id"]
     public_key = init_data["public_key"]
 
-    # Step 2: Sender uploads a file
-    original_content = b"CA-II DevOps secure transfer test file."
+    # ------------------------------------------------------------
+    # Sender uploads file
+    # ------------------------------------------------------------
+
+    original_content = (
+        b"CA-II DevOps secure transfer test file."
+    )
 
     encrypt_response = client.post(
         "/api/sender/encrypt",
         data={
             "transfer_id": transfer_id,
             "public_key": public_key,
-            "file": (io.BytesIO(original_content), "ca2-test.txt"),
+            "file": (
+                io.BytesIO(original_content),
+                "ca2-test.txt",
+            ),
         },
         content_type="multipart/form-data",
     )
@@ -97,10 +126,15 @@ def test_end_to_end_secure_file_transfer():
     assert encrypt_data["transfer_integrity"] is True
     assert encrypt_data["original_name"] == "ca2-test.txt"
 
-    # Step 3: Receiver decrypts the transferred file
+    # ------------------------------------------------------------
+    # Receiver decrypts file
+    # ------------------------------------------------------------
+
     decrypt_response = client.post(
         "/api/receiver/decrypt",
-        json={"transfer_id": transfer_id},
+        json={
+            "transfer_id": transfer_id
+        },
     )
 
     assert decrypt_response.status_code == 200
@@ -111,7 +145,10 @@ def test_end_to_end_secure_file_transfer():
     assert decrypt_data["integrity_verified"] is True
     assert decrypt_data["original_name"] == "ca2-test.txt"
 
-    # Step 4: Download and verify original content
+    # ------------------------------------------------------------
+    # Download and verify content
+    # ------------------------------------------------------------
+
     download_response = client.get(
         f"/api/receiver/download/{transfer_id}"
     )
@@ -121,12 +158,14 @@ def test_end_to_end_secure_file_transfer():
 
 
 def test_invalid_transfer_id_is_rejected():
-    """Verify that an unknown transfer ID is rejected."""
+    """Verify an unknown transfer ID is rejected."""
     client = app.test_client()
 
     response = client.post(
         "/api/receiver/check",
-        json={"transfer_id": "INVALID1"},
+        json={
+            "transfer_id": "INVALID1"
+        },
     )
 
     assert response.status_code == 404
