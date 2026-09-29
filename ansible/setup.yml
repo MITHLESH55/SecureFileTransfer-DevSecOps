@@ -1,0 +1,112 @@
+---
+- name: Configure Secure File Transfer Runtime Environment
+  hosts: secure_file_transfer
+  become: true
+  gather_facts: true
+
+  vars:
+    app_user: sftapp
+    app_group: sftapp
+    app_dir: /opt/secure-file-transfer
+    venv_dir: /opt/secure-file-transfer/venv
+
+  tasks:
+
+    - name: Install required runtime packages
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+        state: present
+        update_cache: true
+
+    - name: Create application group
+      group:
+        name: "{{ app_group }}"
+        state: present
+
+    - name: Create dedicated application user
+      user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0755"
+
+    - name: Create application workspace
+      file:
+        path: "{{ app_dir }}/web_workspace"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0750"
+
+    - name: Copy application entry point
+      copy:
+        src: ../main.py
+        dest: "{{ app_dir }}/main.py"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0644"
+
+    - name: Copy runtime requirements
+      copy:
+        src: ../requirements.txt
+        dest: "{{ app_dir }}/requirements.txt"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0644"
+
+    - name: Copy core application modules
+      copy:
+        src: ../core/
+        dest: "{{ app_dir }}/core/"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0644"
+
+    - name: Copy web application
+      copy:
+        src: ../web/
+        dest: "{{ app_dir }}/web/"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0644"
+
+    - name: Create Python virtual environment
+      command:
+        cmd: "python3 -m venv {{ venv_dir }}"
+        creates: "{{ venv_dir }}/bin/activate"
+      become_user: "{{ app_user }}"
+
+    - name: Install Python dependencies
+      pip:
+        requirements: "{{ app_dir }}/requirements.txt"
+        virtualenv: "{{ venv_dir }}"
+      become_user: "{{ app_user }}"
+
+    - name: Set secure workspace permissions
+      file:
+        path: "{{ app_dir }}/web_workspace"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0750"
+        recurse: true
+
+    - name: Display deployment information
+      debug:
+        msg:
+          - "Application configured successfully."
+          - "Application directory: {{ app_dir }}"
+          - "Application user: {{ app_user }}"
+          - "Python virtual environment: {{ venv_dir }}"
+          - "Flask port: 5000"
