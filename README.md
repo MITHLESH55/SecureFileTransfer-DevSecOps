@@ -64,7 +64,6 @@ flowchart LR
 | 3 | Containerization / Orchestration | Docker + Kubernetes | ✅ |
 | 4 | Monitoring / Logging | Prometheus + Grafana | ✅ |
 | 5 | Reflection / Report | Architecture, results, lessons | ✅ |
-| 6 | External challenge / Bonus | Optional — requires submission proof | ⭕ |
 
 ---
 
