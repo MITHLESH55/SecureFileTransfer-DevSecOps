@@ -13,7 +13,7 @@ A Flask-based secure file-transfer application, delivered through an end-to-end 
   <img src="https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?logo=githubactions&logoColor=white" alt="GitHub Actions">
 </p>
 
-> BTech DevOps CA | TH1
+> BTech DevOps CA-2 | TH1
 
 ---
 
@@ -50,7 +50,7 @@ flowchart LR
     E --> F[Kubernetes]
     G[Ansible] --> F
     F --> H[Secure File Transfer App]
-    H --> I[/metrics]
+    H --> I["/metrics"]
     I --> J[Prometheus]
     J --> K[Grafana]
 ```
