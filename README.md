@@ -36,7 +36,7 @@ A Flask-based secure file-transfer application, delivered through an end-to-end 
 | 1 | Mithlesh Yadav | 23070122265 |
 | 2 | Velagala Prapul Krishna Reddy | 23070122232 |
 | 3 | Rishi Modi | 23070122180 |
-
+| 4 | Prajyot Vedante | 23070122163 |
 ---
 
 ## Architecture
